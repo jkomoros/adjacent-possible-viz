@@ -370,7 +370,7 @@ class Urn {
 	}
 
 	pick() {
-		const val = Math.floor(this._rnd.quick() * this._sum);
+		const val = this._rnd.quick() * this._sum;
 		let sum = 0.0;
 		const entries = this._items.entries();
 		for (let [item, count] of entries) {
