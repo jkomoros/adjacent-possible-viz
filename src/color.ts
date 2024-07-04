@@ -1,3 +1,6 @@
+import {
+	ExpandedColor
+} from './types.js';
 
 const NAMED_COLORS = {
 	"aliceblue": "#f0f8ff",
@@ -151,7 +154,7 @@ const NAMED_COLORS = {
 	"yellowgreen": "#9acd32"
 };
 
-export const color = (arg) => {
+export const color = (arg) : ExpandedColor => {
 	let r = 0;
 	let g = 0;
 	let b = 0;
@@ -201,8 +204,8 @@ export const color = (arg) => {
 		}
 		[r,g,b,a] = arg;
 	}
-	const rgb = [r, g, b];
-	const rgba = [r, g, b, a];
+	const rgb : [number, number, number] = [r, g, b];
+	const rgba : [number, number, number, number] = [r, g, b, a];
 	const hexInner = [r.toString(16), g.toString(16), b.toString(16), Math.floor(a * 255).toString(16)].map(str => str.length == 1 ? '0' + str : str);
 	const hex = ('#' + hexInner.join('')).toUpperCase();
 	const rgbStr = 'rgb(' + r  + ',' + g + ',' + b + ')';

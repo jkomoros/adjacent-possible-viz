@@ -15,13 +15,13 @@ import { PageViewElement } from './page-view-element.js';
 import { SharedStyles } from './shared-styles.js';
 
 class MyView404 extends PageViewElement {
-  static get styles() {
+  static override get styles() {
     return [
       SharedStyles
     ];
   }
 
-  render() {
+  override render() {
     return html`
       <section>
         <h2>Oops! You hit a 404</h2>

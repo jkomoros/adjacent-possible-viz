@@ -7,6 +7,16 @@ import {
 	color
 } from './color.js';
 
+import {
+	CellData,
+	ConfigData,
+	ConfigDataItem,
+	ExpandedFrameData,
+	GenerateConfiguration,
+	GrowConfiguration,
+	RandomGenerator
+} from './types.js';
+
 /*
 expandedMapData has the following shape:
 {
@@ -129,7 +139,7 @@ const SET_CELL_COMMANDS = {
 	[SET_CELL_SCALE_COMMAND]: [SET_CELL_SCALE_COMMAND],
 };
 
-const setDefaultsOnCell = (cell) => {
+const setDefaultsOnCell = (cell : Partial<CellData>) => {
 	cell.value = 0.0;
 	cell.highlighted = false;
 	cell.captured = false;
@@ -141,13 +151,13 @@ const setDefaultsOnCell = (cell) => {
 	cell.autoOpacity = 0.0;
 };
 
-const defaultCellData = (row, col) => {
+const defaultCellData = (row : number, col: number) : CellData => {
 	const cell = {
 		row,
 		col
 	};
 	setDefaultsOnCell(cell);
-	return cell;
+	return cell as CellData;
 };
 
 export const defaultCellsForSize = (rows, cols) => {
@@ -160,7 +170,7 @@ export const defaultCellsForSize = (rows, cols) => {
 	return result;
 };
 
-export const defaultExpandedFrameForCells = (cells) => {
+export const defaultExpandedFrameForCells = (cells) : ExpandedFrameData => {
 	let rows = 0;
 	let cols = 0;
 	if (cells.length) {
@@ -177,7 +187,7 @@ export const defaultExpandedFrameForCells = (cells) => {
 	};
 };
 
-export const getCellFromMap = (map, row, col) => {
+export const getCellFromMap = (map : ExpandedFrameData, row : number, col : number) : CellData => {
 	if (row < 0 || row >= map.rows) return null;
 	if (col < 0 || col >= map.cols) return null;
 	return map.cells[row * map.cols + col];
@@ -262,7 +272,7 @@ const setAutoOpacity = (map) => {
 	}
 };
 
-const defaultGrowConfig = () => {
+const defaultGrowConfig = () : GrowConfiguration => {
 	return {
 		seed: 'seed',
 		randomness: 0.1,
@@ -277,20 +287,20 @@ const defaultGrowConfig = () => {
 	};
 };
 
-const opacityForCell = (cell) => {
+const opacityForCell = (cell : CellData) : number => {
 	return cell.fillOpacity === undefined || cell.fillOpacity === null ? cell.autoOpacity : cell.fillOpacity;
 };
 
-const localValueForCell = (cell) => {
+const localValueForCell = (cell : CellData) : number => {
 	if (typeof cell.value != 'number') return 0.0;
 	return opacityForCell(cell) * cell.value;
 };
 
 //Returns a list of the cells that ring the centerCell. 0 plys is the center
 //cell itself, 1 is immediate neighbors, 2 is the ring outside of that, etc.
-export const ringCells = (map, centerCell, ply) => {
+export const ringCells = (map : ExpandedFrameData, centerCell : CellData, ply : number) : CellData[] => {
 	if (ply == 0) return [centerCell];
-	const result = [];
+	const result : CellData[] = [];
 	//Top row
 	let r = centerCell.row - ply;
 	for (let c = centerCell.col - ply; c <= centerCell.col + ply; c++) {
@@ -358,7 +368,12 @@ const netPresentValueMap = (map, centerCell, growConfig) => {
 };
 
 class Urn {
-	constructor(rnd) {
+
+	private _rnd : RandomGenerator | null;
+	private _sum : number;
+	private _items : Map<string, number>;
+
+	constructor(rnd : RandomGenerator | null) {
 		this._rnd = rnd;
 		this._sum = 0.0;
 		this._items = new Map();
@@ -481,7 +496,7 @@ const DEFAULT_PROPORTIONS = {
 	[EMPTY_VALUE_NAME]: 15
 };
 
-const defaultGenerateConfig = () => {
+const defaultGenerateConfig = () : GenerateConfiguration => {
 	return {
 		seed: 'seed',
 		keyCellProportion: 0.6,
@@ -515,7 +530,7 @@ const proportionForUrnKey = (config, key) => {
 	return proportions[specialKey];
 };
 
-export const urnFromGenerateConfig = (rnd, config) => {
+export const urnFromGenerateConfig = (rnd : RandomGenerator, config : GenerateConfiguration) : Urn => {
 	const urn = new Urn(rnd);
 	const stepSize = 1 / VALUE_BIN_COUNT;
 	for (let i = 0; i <= VALUE_BIN_COUNT * 2; i++) {
@@ -531,7 +546,7 @@ export const urnFromGenerateConfig = (rnd, config) => {
 
 const SENTINEL_VALUE = Number.MAX_SAFE_INTEGER;
 
-const generateMap = (map, config) => {
+const generateMap = (map : ExpandedFrameData, config : GenerateConfiguration) => {
 	if (typeof config != 'object') config = {};
 	config = {...defaultGenerateConfig(), ...config};
 	const seed = config.seed === true ? undefined : config.seed;
@@ -554,12 +569,12 @@ const generateMap = (map, config) => {
 		const valueNeighbors = ringCells(map, cell, 1).filter(neighbor => neighbor.value != SENTINEL_VALUE);
 
 		//Set the cell to the mode of its set neighbors
-		const counts = {};
+		const counts : Record<number, number> = {};
 		for (let neighbor of valueNeighbors) {
 			counts[neighbor.value] = (counts[neighbor.value] || 0) + 1;
 		}
-		let maxKey = 0.0;
-		let maxCount = 0;
+		let maxKey : number = 0.0;
+		let maxCount : number = 0;
 		for (const [key, count] of Object.entries(counts)) {
 			if (count < maxCount) continue;
 			maxCount = count;
@@ -573,7 +588,13 @@ const generateMap = (map, config) => {
 };
 
 class Frame {
-	constructor(collection, index, rawData) {
+
+	private _collection : FrameCollection;
+	private _index : number;
+	private _rawData : ConfigDataItem;
+	private _cachedData : ExpandedFrameData | null;
+
+	constructor(collection : FrameCollection, index : number, rawData : ConfigDataItem) {
 		this._collection = collection;
 		this._index = index;
 		this._rawData = rawData;
@@ -585,7 +606,7 @@ class Frame {
 	}
 
 	_computeData() {
-		let previous;
+		let previous : ExpandedFrameData | undefined;
 		if (this._rawData[RESET_TO_COMMAND]) {
 			const previousMap = this._collection.frameForName(this._rawData[RESET_TO_COMMAND]);
 			if (!previousMap) throw new Error("No such previous with that name");
@@ -708,15 +729,16 @@ class Frame {
 		this._cachedData = result;
 	}
 
-	get expandedData() {
+	get expandedData() : ExpandedFrameData {
 		if (!this._cachedData) {
 			this._computeData();
 		}
+		if (!this._cachedData) throw new Error('computeData didn\'t compute data as expected');
 		return this._cachedData;
 	}
 }
 
-const expandRawBlocks = (data) => {
+const expandRawBlocks = (data : ConfigData) : ConfigData => {
 	const result = [];
 	for (const item of data) {
 		if (item[DISABLE_COMMAND]) continue;
@@ -729,7 +751,11 @@ const expandRawBlocks = (data) => {
 };
 
 export class FrameCollection {
-	constructor(data) {
+
+	private _data : ConfigData;
+	private _memoizedMaps : Record<number, Frame>;
+
+	constructor(data : ConfigData) {
 		data = expandRawBlocks(data);
 		this._data = data || [];
 		this._memoizedMaps = {};

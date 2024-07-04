@@ -11,13 +11,13 @@ subject to an additional IP rights grant found at http://polymer.github.io/PATEN
 import { LitElement, html, css } from 'lit-element';
 
 class SnackBar extends LitElement {
-  static get properties() {
+  static override get properties() {
     return {
       active: { type: Boolean }
     };
   }
 
-  static get styles() {
+  static override get styles() {
     return [
       css`
         :host {
@@ -53,7 +53,7 @@ class SnackBar extends LitElement {
     ];
   }
 
-  render() {
+  override render() {
     return html`
       <slot></slot>
     `;

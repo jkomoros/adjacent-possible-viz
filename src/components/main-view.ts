@@ -71,7 +71,7 @@ const fetchData = async() => {
 };
 
 class MainView extends connect(store)(PageViewElement) {
-	static get properties() {
+	static override get properties() {
 		return {
 			// This is the data from the store.
 			_expandedMapData: { type: Object },
@@ -80,7 +80,7 @@ class MainView extends connect(store)(PageViewElement) {
 		};
 	}
 
-	static get styles() {
+	static override get styles() {
 		return [
 			SharedStyles,
 			css`
@@ -103,7 +103,7 @@ class MainView extends connect(store)(PageViewElement) {
 		];
 	}
 
-	firstUpdated() {
+	override firstUpdated() {
 		fetchData();
 		document.addEventListener('keydown', e => this._handleKeyDown(e));
 	}
@@ -121,7 +121,7 @@ class MainView extends connect(store)(PageViewElement) {
 
 	}
 
-	render() {
+	override render() {
 		return html`
 			<style>
 				:host {
@@ -141,7 +141,7 @@ class MainView extends connect(store)(PageViewElement) {
 	}
 
 	// This is called every time something is updated in the store.
-	stateChanged(state) {
+	override stateChanged(state) {
 		this._expandedMapData = selectExpandedCurrentMapData(state);
 		this._pageExtra = selectPageExtra(state);
 		this._currentIndex = selectCurrentDataIndex(state);
@@ -151,7 +151,7 @@ class MainView extends connect(store)(PageViewElement) {
 		});
 	}
 
-	updated(changedProps) {
+	override updated(changedProps) {
 		if (changedProps.has('_pageExtra')) {
 			const index = this._pageExtra ? parseInt(this._pageExtra) : -1;
 			store.dispatch(updateIndex(index));
