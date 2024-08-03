@@ -1,7 +1,10 @@
-export const UPDATE_PAGE = "UPDATE_PAGE";
-export const UPDATE_OFFLINE = "UPDATE_OFFLINE";
-export const OPEN_SNACKBAR = "OPEN_SNACKBAR";
-export const CLOSE_SNACKBAR = "CLOSE_SNACKBAR";
+import {
+	UPDATE_PAGE,
+	UPDATE_OFFLINE,
+	OPEN_SNACKBAR,
+	CLOSE_SNACKBAR,
+	SomeAction
+} from "../actions.js";
 
 import {
 	selectPage,
@@ -10,8 +13,12 @@ import {
 	selectMaxLegalIndex,
 } from '../selectors.js';
 
+import {
+	ThunkSomeAction
+} from "../store.js";
+
 //if silent is true, then just passively updates the URL to reflect what it should be.
-export const navigatePathTo = (path, silent) => (dispatch) => {
+export const navigatePathTo = (path : string, silent : boolean) : ThunkSomeAction => (dispatch) => {
 	//If we're already pointed there, no need to navigate
 	if ('/' + path === window.location.pathname) return;
 	if (silent) {
@@ -22,7 +29,7 @@ export const navigatePathTo = (path, silent) => (dispatch) => {
 	dispatch(navigate(path));
 };
 
-export const canonicalizePath = () => (dispatch ,getState) => {
+export const canonicalizePath = () : ThunkSomeAction => (dispatch ,getState) => {
 	const state = getState();
 	const page = selectPage(state);
 	const pageExtra = selectPageExtra(state);
@@ -41,7 +48,7 @@ export const canonicalizePath = () => (dispatch ,getState) => {
 	dispatch(navigatePathTo(path, true));
 };
 
-export const navigate = (path) => (dispatch) => {
+export const navigate = (path : string) : ThunkSomeAction => (dispatch) => {
 	// Extract the page name from path.
 	const page = path === "/" ? "main" : path.slice(1);
 
@@ -50,7 +57,7 @@ export const navigate = (path) => (dispatch) => {
 	dispatch(loadPage(page));
 };
 
-const loadPage = (location) => (dispatch) => {
+const loadPage = (location : string) : ThunkSomeAction => (dispatch) => {
 
 	const pieces = location.split('/');
 
@@ -69,7 +76,7 @@ const loadPage = (location) => (dispatch) => {
 	dispatch(updatePage(page, pageExtra));
 };
 
-const updatePage = (page, pageExtra) => {
+const updatePage = (page : string, pageExtra : string) : SomeAction => {
 	return {
 		type: UPDATE_PAGE,
 		page,
@@ -77,9 +84,9 @@ const updatePage = (page, pageExtra) => {
 	};
 };
 
-let snackbarTimer;
+let snackbarTimer : number;
 
-export const showSnackbar = () => (dispatch) => {
+export const showSnackbar = () : ThunkSomeAction => (dispatch) => {
 	dispatch({
 		type: OPEN_SNACKBAR
 	});
@@ -88,7 +95,7 @@ export const showSnackbar = () => (dispatch) => {
 		dispatch({ type: CLOSE_SNACKBAR }), 3000);
 };
 
-export const updateOffline = (offline) => (dispatch, getState) => {
+export const updateOffline = (offline : boolean) : ThunkSomeAction => (dispatch, getState) => {
 	// Show the snackbar only if offline status changes.
 	if (offline !== getState().app.offline) {
 		dispatch(showSnackbar());
@@ -97,8 +104,4 @@ export const updateOffline = (offline) => (dispatch, getState) => {
 		type: UPDATE_OFFLINE,
 		offline
 	});
-};
-
-export const updateLayout = (wide) => () => {
-	console.log(`The window changed to a ${wide ? "wide" : "narrow"} layout`);
 };

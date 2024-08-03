@@ -1,15 +1,20 @@
 import {
 	LOAD_DATA,
+	SomeAction,
 	UPDATE_INDEX
-} from "../actions/data.js";
+} from "../actions.js";
 
-const INITIAL_STATE = {
+import {
+	DataState
+} from "../types.js";
+
+const INITIAL_STATE : DataState = {
 	data: [],
 	//-1 signals it should be the default value, either 0 or the last state
 	index: -1,
 };
 
-const data = (state = INITIAL_STATE, action) => {
+const data = (state : DataState = INITIAL_STATE, action : SomeAction) => {
 	switch (action.type) {
 	case LOAD_DATA:
 		return {

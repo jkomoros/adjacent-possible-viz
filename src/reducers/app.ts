@@ -1,28 +1,26 @@
-/**
-@license
-Copyright (c) 2018 The Polymer Project Authors. All rights reserved.
-This code may only be used under the BSD style license found at http://polymer.github.io/LICENSE.txt
-The complete set of authors may be found at http://polymer.github.io/AUTHORS.txt
-The complete set of contributors may be found at http://polymer.github.io/CONTRIBUTORS.txt
-Code distributed by Google as part of the polymer project is also
-subject to an additional IP rights grant found at http://polymer.github.io/PATENTS.txt
-*/
+import {
+	SomeAction
+} from "../actions.js";
 
 import {
 	UPDATE_PAGE,
 	UPDATE_OFFLINE,
 	OPEN_SNACKBAR,
 	CLOSE_SNACKBAR,
-} from "../actions/app.js";
+} from "../actions.js";
 
-const INITIAL_STATE = {
+import {
+	AppState
+} from "../types.js";
+
+const INITIAL_STATE : AppState = {
 	page: "",
 	pageExtra: "",
 	offline: false,
 	snackbarOpened: false,
 };
 
-const app = (state = INITIAL_STATE, action) => {
+const app = (state : AppState = INITIAL_STATE, action : SomeAction) => {
 	switch (action.type) {
 	case UPDATE_PAGE:
 		return {

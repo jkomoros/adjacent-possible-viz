@@ -57,6 +57,8 @@ Each frame is an object with commands that apply:
 - `gif`: `<object> or <string> or true` - If set, this frame will be marked to be rolled up into the gif. Each unique string will denote a different named gif. true defaults to 'default'. If an object, it should have the shape of gifParameters below. Only one gifParameters per gif needs to be set; the rest can just use a string of the same name. All frames for a given gif must be the same size (scale and setSize) or the gif won't be saved. Frames tagged to be included in a gif will not have a transparent background (otherwise the variable alpha looks weird).
 - `grow`: `<non-falsey-value>` - Grows all of the active cells into a legal neighbor. See growParameters below for more values that can be passed in an object.
 - `generate`: `<non-falsey-value>` - Generates a new map of values in the map. See generateParameters below for more values that can be passed in an object.
+- `move`: `true` - Adds velocityX/velocityY to each cell's offsetX and offsetY.
+- `randomize` : `<object> or <object>[]` Randomizes the given property for the given cells. See RandomizeParameters, below. You can provide one config or an array.
 
 The next groups are cell commands. They select a property to modify, a value to set, and then a range of cells to affect, like this:
 `<property-name> : [[<value>, <cell-reference>], [<value2>, <cell-reference2>], ...]`. You can have a single value/cell-reference pair or as many as you want.
@@ -76,6 +78,12 @@ The cell properties that can be set are:
 - `fillOpacity` [0.0 ... 1.0] - Overrides the default opacity for a cell, affecting only the fill color.
 - `strokeOpacity` [0.0 ... 1.0] - Overides the default opacity for a cell, affecting only the stroke color. 
 - `scale` [0.0 ... 10.0] - Scale of individual cells (as opposed to all cells, like setScale)
+- `offsetX` - Offsets the cell that many pixels in the x direction from its normal position
+- `offsetY` - Offsets the cell that many pixels in the y direction from its normal position
+- `nudge` - Takes an [x, y] pair and nudges the offsetX and offsetY of the affected cells by that amount.
+- `velocity` - Sets both velocityX and velocityY at the same time to the same value.
+- `velocityX` - Sets the rate that this cell will move in the x direction per call to `move`
+- `velocityY` - Sets the rate that this cell will move in the y direction per call to `move`
 
 There is also one special cell command, `reset`. It doesn't require a property
 value, so it just takes an array of cellReferences. It resets each affected cell
@@ -103,6 +111,14 @@ Color defintions in the `setColors` command block can be:
 - `name` - `string` If providing an object, name is required. This will be the name of the gif output, and also how other frames can denote they are part of the same gif by providing `gif: <string>`.
 - `repeat` - `<integer>` Defaults to 0. How many repeats to have in the gif. -1 is no repeat, 0 is infinite, and any other positive integer is repeat count.
 - `delay` - `<integer>` Defaults to 150. How many ms to wait between frames in the gif.
+
+**randomizeParameters**
+- `name` - The property name to randomize. May only be values that can set cell values directly (excluding opacity). For boolean values, values will be clipped to 0.0 and 1.0 and then rounded to the final value for true or false. For numbers, it will be a linear range between min and max.
+- `seed` - `true or string` - Optional. Can set a specific seed for this randomization.
+- `min` - `number` - Optional. If omitted, defaults to 0.0. The lowest number for the values.
+- `max` - `number` - Optional. If omitted, defaults to 1.0. The highest number for the values.
+- `relative` - `boolean` - Optional. If true, then instead of resetting the value with the new value, it will add the random value to the existing value.
+- `cells` - `CellReference` - Optional. The cells to randomize the property for. If omitted, will modify the whole map.
 
 **growParameters**:
 - `seed`: `string` - A string to use as seed. The results are deterministic. If you don't like the result you're getting at a step, provide a different seed. If the boolean true is provided, it will operate non deterministically, effectively using a fresh seed every time.

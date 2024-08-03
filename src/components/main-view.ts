@@ -1,4 +1,5 @@
-import { html, css} from "lit-element";
+import { html, css, CSSResultGroup, PropertyValues } from "lit";
+import { customElement, state } from 'lit/decorators.js';
 import { PageViewElement } from "./page-view-element.js";
 import { connect } from "pwa-helpers/connect-mixin.js";
 
@@ -21,23 +22,26 @@ import {
 	GIF_COMMAND
 } from "../frame.js";
 
-// We are lazy loading its reducer.
-import data from "../reducers/data.js";
-store.addReducers({
-	data
-});
-
 //rendevous point with screenshot service. Duplicated in screenshot.js
 const CURRENT_INDEX_VARIABLE = 'current_index';
 const PREVIOUS_MAP_VARIABLE = 'previous_map';
 const RENDER_COMPLETE_VARIABLE = 'render_complete';
 const GIF_NAME_VARIABLE = 'gif_name';
 
-window[RENDER_COMPLETE_VARIABLE] = false;
+declare global {
+	interface Window {
+	  [RENDER_COMPLETE_VARIABLE]: boolean;
+	  [CURRENT_INDEX_VARIABLE]: number;
+	  [PREVIOUS_MAP_VARIABLE]: () => void;
+	  [GIF_NAME_VARIABLE]: string | undefined;
+	}
+  }
 
-window[PREVIOUS_MAP_VARIABLE] = () => {
+window.render_complete = false;
+
+window.previous_map = () => {
 	//The main-view will set this high when update is done
-	window[RENDER_COMPLETE_VARIABLE] = false;
+	window.render_complete = false;
 	store.dispatch(prevIndex());
 };
 
@@ -47,40 +51,45 @@ import "./frame-visualization.js";
 // These are the shared styles needed by this element.
 import { SharedStyles } from "./shared-styles.js";
 import { updateIndex } from '../actions/data.js';
+import { ConfigData, ExpandedFrameData, RootState } from "../types.js";
 
 const FRAME_DATA_FILE_NAME = 'frame_data.json';
 const SAMPLE_FRAME_DATA_FILE_NAME = 'frame_data.SAMPLE.json';
 
 const fetchData = async() => {
-	let res;
-	let fetchErrored = false;
+	let res : Response | null = null;
+	let fetchErrored : Error | null = null;
 	try {
-		res = await fetch("/" + FRAME_DATA_FILE_NAME);
-	} catch (err) {
+		res  = await fetch("/" + FRAME_DATA_FILE_NAME);
+	} catch (err : unknown) {
+		if (!(err instanceof Error)) throw new Error('Unexpected error');
 		fetchErrored = err;
 	}
 
-	if (fetchErrored || !res.ok) {
+	if (fetchErrored || res === null || !res.ok) {
 		console.warn(FRAME_DATA_FILE_NAME + ' not found. Using ' + SAMPLE_FRAME_DATA_FILE_NAME + ' instead.');
 		res = await fetch("/" + SAMPLE_FRAME_DATA_FILE_NAME);
 	}
 
-	const data = await res.json();
+	//TODO: verify shape with zod
+	const data = await res.json() as ConfigData;
 
 	store.dispatch(loadData(data));
 };
 
+@customElement('main-view')
 class MainView extends connect(store)(PageViewElement) {
-	static override get properties() {
-		return {
-			// This is the data from the store.
-			_expandedMapData: { type: Object },
-			_pageExtra: { type: String },
-			_currentIndex: { type: Number },
-		};
-	}
 
-	static override get styles() {
+	@state()
+		_expandedMapData : ExpandedFrameData | null = null;
+
+	@state()
+		_pageExtra : string = '';
+	
+	@state()
+		_currentIndex : number = -1;
+
+	static override get styles(): CSSResultGroup {
 		return [
 			SharedStyles,
 			css`
@@ -89,7 +98,7 @@ class MainView extends connect(store)(PageViewElement) {
 					height:100vh;
 					width: 100vw;
 				}
-
+	
 				.container {
 					display: flex;
 					justify-content: center;
@@ -98,7 +107,7 @@ class MainView extends connect(store)(PageViewElement) {
 					width: 100%;
 					background-color: var(--override-app-background-color, var(--app-background-color, #356F9E));
 				}
-
+	
 			`
 		];
 	}
@@ -108,7 +117,7 @@ class MainView extends connect(store)(PageViewElement) {
 		document.addEventListener('keydown', e => this._handleKeyDown(e));
 	}
 
-	_handleKeyDown(e) {
+	_handleKeyDown(e : KeyboardEvent) {
 		//We have to hook this to issue content editable commands when we're
 		//active. But most of the time we don't want to do anything.
 		if (!this.active) return;
@@ -141,7 +150,7 @@ class MainView extends connect(store)(PageViewElement) {
 	}
 
 	// This is called every time something is updated in the store.
-	override stateChanged(state) {
+	override stateChanged(state : RootState) {
 		this._expandedMapData = selectExpandedCurrentMapData(state);
 		this._pageExtra = selectPageExtra(state);
 		this._currentIndex = selectCurrentDataIndex(state);
@@ -151,7 +160,7 @@ class MainView extends connect(store)(PageViewElement) {
 		});
 	}
 
-	override updated(changedProps) {
+	override updated(changedProps : PropertyValues<this>) {
 		if (changedProps.has('_pageExtra')) {
 			const index = this._pageExtra ? parseInt(this._pageExtra) : -1;
 			store.dispatch(updateIndex(index));
@@ -160,10 +169,15 @@ class MainView extends connect(store)(PageViewElement) {
 			window[CURRENT_INDEX_VARIABLE] = this._currentIndex;
 		}
 		if (changedProps.has('_expandedMapData')) {
-			const data = this._expandedMapData || {};
-			window[GIF_NAME_VARIABLE] = data[GIF_COMMAND];
+			const data : ExpandedFrameData | null = this._expandedMapData;
+			if (data) window.gif_name = data.gif;
 		}
 	}
 }
 
-window.customElements.define("main-view", MainView);
+declare global {
+	interface HTMLElementTagNameMap {
+		'main-view': MainView;
+	}
+}
+

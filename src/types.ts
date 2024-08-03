@@ -2,10 +2,10 @@ export type RandomGenerator = {
     quick: () => number;
 };
 
-type Size = [number, number];
+export type Size = [number, number];
 
 //TODO: type more tightly
-type Color = string | [number, number, number] | [number, number, number, number];
+export type Color = string | [number, number, number] | [number, number, number, number];
 
 type ResettableColor = Color | null;
 
@@ -21,7 +21,7 @@ export type ExpandedColor = {
     rgbaStr: string;
 }
 
-type Colors<C extends ResettableColor | ExpandedColor>= {
+export type Colors<C extends ResettableColor | ExpandedColor>= {
     zero : C;
     positive : C;
     negative : C;
@@ -37,8 +37,8 @@ type GifConfiguration = {
     delay: number;
 };
 
-type GrowConfiguration = {
-    seed? : string;
+export type GrowConfiguration = {
+    seed? : string | true;
     randomness? : number;
     proportion? : number;
     numCellsToGrow? : number;
@@ -47,53 +47,88 @@ type GrowConfiguration = {
     branchLikelihood? : number;
 };
 
+export type Proportions = {
+    max : number;
+    min : number;
+    positive : number;
+    negative : number;
+    zero : number;
+    null : number;
+};
+
 export type GenerateConfiguration = {
     seed? : string | true;
     keyCellProportion? : number;
-    proportions? : {
-        max? : number;
-        min? : number;
-        positive? : number;
-        negative? : number;
-        zero? : number;
-        null? : number;
-    }
+    proportions? : Partial<Proportions>;
 };
 
-type CellReference = [number, number] | [number, number, number, number] | [];
+export type RandomizeConfigurationItem = {
+    //TODO: also support setting opacity
+    name: keyof ConfigDataItemSetCellDirect;
+    seed? : string | true;
+    min?: number;
+    max?: number;
+    relative?: boolean;
+    cells? : CellReference;
+};
+
+export type ExpandedCellReference = [number, number, number, number];
+
+export type CellReference = [number, number] | [number, number, number, number] | [];
 
 type CellValue<V> = [V, CellReference][];
 
-export type ConfigDataItem = {
+//These are the command items that directly adhere to CellData
+export type ConfigDataItemSetCellDirect = {
+    value? : CellValue<number | null>;
+    highlighted? : CellValue<boolean>;
+    captured? : CellValue<boolean>;
+    active? : CellValue<boolean>;
+    fillOpacity? : CellValue<number>;
+    strokeOpacity? : CellValue<number>;
+    scale? : CellValue<number>;
+    offsetX? : CellValue<number>;
+    offsetY? : CellValue<number>;
+    velocityX? : CellValue<number>;
+    velocityY? : CellValue<number>;
+};
+
+//These are the commands that can be used to set properties on cell
+export type ConfigDataItemSetCell = ConfigDataItemSetCellDirect & {
+    opacity? : CellValue<number>;
+    velocity? : CellValue<number>;
+    activeOnly? : CellValue<boolean>;
+};
+
+export type ConfigDataItem = ConfigDataItemSetCell & {
     setSize? : Size;
     setAdjacentPossibleSteps? : number;
     setScale? : number;
     setColors? : Partial<Colors<ResettableColor>>;
     description? : string;
     name? : string;
+    reset?: CellReference[];
     resetTo? : string;
     repeat? : number;
     disable? : true;
+    randomize? : RandomizeConfigurationItem | RandomizeConfigurationItem[];
     gif? : GifConfiguration | string | true;
     grow? : GrowConfiguration;
     generate? : GenerateConfiguration;
-    value? : CellValue<number | null>;
-    highlighted? : CellValue<boolean>;
-    captured? : CellValue<boolean>;
-    active? : CellValue<boolean>;
-    activeOnly? : CellValue<boolean>;
-    opacity? : CellValue<number>;
-    fillOpacity? : CellValue<number>;
-    strokeOpacity? : CellValue<number>;
-    scale? : CellValue<number>;
-};
+    nudge? : CellValue<Size>;
+    move? : true | number;
+}
 
 export type ConfigData = ConfigDataItem[];
 
 export type CellData = {
     row: number;
     col: number;
-    value: number;
+    offsetX: number;
+    offsetY: number;
+    velocityX: number;
+    velocityY: number;
+    value: number | null;
     highlighted: boolean;
     captured: boolean;
     active: boolean;
@@ -103,6 +138,8 @@ export type CellData = {
     autoOpacity : number;
 }
 
+export type CellPropertyName = keyof CellData;
+
 export type ExpandedFrameData = {
     rows: number;
     cols: number;
@@ -111,4 +148,22 @@ export type ExpandedFrameData = {
     scale : number,
     cells: CellData[]
     gif? : string;
+}
+
+export type AppState = {
+    page: string
+	pageExtra: string
+	offline: boolean
+	snackbarOpened: boolean
+};
+
+export type DataState = {
+    data: ConfigData
+	//-1 signals it should be the default value, either 0 or the last state
+	index: number
+};
+
+export type RootState = {
+    app: AppState;
+    data: DataState;
 }

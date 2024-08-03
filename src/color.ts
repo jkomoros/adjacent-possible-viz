@@ -1,8 +1,9 @@
 import {
+	Color,
 	ExpandedColor
 } from './types.js';
 
-const NAMED_COLORS = {
+const NAMED_COLORS : Record<string, string>= {
 	"aliceblue": "#f0f8ff",
 	"antiquewhite": "#faebd7",
 	"aqua": "#00ffff",
@@ -154,7 +155,7 @@ const NAMED_COLORS = {
 	"yellowgreen": "#9acd32"
 };
 
-export const color = (arg) : ExpandedColor => {
+export const color = (arg : null | undefined | Color) : ExpandedColor => {
 	let r = 0;
 	let g = 0;
 	let b = 0;

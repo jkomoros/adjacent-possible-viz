@@ -9,13 +9,27 @@ import {
 
 import {
 	CellData,
+	CellPropertyName,
+	CellReference,
+	Colors,
 	ConfigData,
 	ConfigDataItem,
+	ConfigDataItemSetCell,
+	ConfigDataItemSetCellDirect,
+	ExpandedCellReference,
+	ExpandedColor,
 	ExpandedFrameData,
 	GenerateConfiguration,
 	GrowConfiguration,
-	RandomGenerator
+	Proportions,
+	RandomGenerator,
+	RandomizeConfigurationItem,
+	Size
 } from './types.js';
+
+import {
+	TypedObject
+} from './typed-object.js';
 
 /*
 expandedMapData has the following shape:
@@ -59,7 +73,7 @@ export const BACKGROUND_COLOR_NAME = 'background';
 export const HIGHLIGHTED_COLOR_NAME = 'highlighted';
 export const CAPTURED_COLOR_NAME = 'captured';
 
-export const DEFAULT_COLORS = {
+export const DEFAULT_COLORS : Colors<ExpandedColor>= {
 	[ZERO_COLOR_NAME]: color('#FFF'),
 	[POSITIVE_COLOR_NAME]: color('#38761D'),
 	[NEGATIVE_COLOR_NAME]: color('#C00'),
@@ -111,6 +125,12 @@ export const SET_FILL_OPACITY_COMMAND = "fillOpacity";
 export const SET_STROKE_OPACITY_COMMAND = "strokeOpacity";
 //Scale of individual cell, in place. 0.0 ... 10.0
 export const SET_CELL_SCALE_COMMAND = "scale";
+export const SET_OFFSET_X_COMMAND = 'offsetX';
+export const SET_OFFSET_Y_COMMAND = 'offsetY';
+export const SET_VELOCITY_X_COMMAND = 'velocityX';
+export const SET_VELOCITY_Y_COMMAND = 'velocityY';
+export const SET_VELOCITY_COMMAND = 'velocity';
+export const NUDGE_COMMAND = 'nudge';
 //Expects a name that was a PREVIOUS state, with a 'name' property, and uses
 //that, instead of the previous state, to base its modifications off of.
 export const RESET_TO_COMMAND = 'resetTo';
@@ -122,21 +142,27 @@ export const GROW_COMMAND = 'grow';
 export const GENERATE_COMMAND = 'generate';
 //A number of how many times to repeat this block in place.
 export const REPEAT_COMMAND = 'repeat';
+export const MOVE_COMMAND = 'move';
 //A string or "" to request gif output include this frame. Only frames that explicitly include this will be outputed.
 //Duplicated in screenshot.js
 export const GIF_COMMAND = 'gif';
 export const DISABLE_COMMAND = 'disable';
 
-const SET_CELL_COMMANDS = {
+const SET_CELL_COMMANDS : Record<keyof ConfigDataItemSetCell, (keyof ConfigDataItemSetCellDirect)[]> = {
 	[SET_HIGHLIGHTED_COMMAND]: [SET_HIGHLIGHTED_COMMAND],
 	[SET_CAPTURED_COMMAND]: [SET_CAPTURED_COMMAND],
 	[SET_ACTIVE_ONLY_COMMAND]: [SET_ACTIVE_COMMAND],
 	[SET_ACTIVE_COMMAND]: [SET_ACTIVE_COMMAND, SET_CAPTURED_COMMAND],
 	[SET_VALUE_COMMAND]: [SET_VALUE_COMMAND],
-	[SET_OPACITY_COMMAND]: ['fillOpacity', 'strokeOpacity'],
+	[SET_OPACITY_COMMAND]: [SET_FILL_OPACITY_COMMAND, SET_STROKE_OPACITY_COMMAND],
 	[SET_FILL_OPACITY_COMMAND]: [SET_FILL_OPACITY_COMMAND],
 	[SET_STROKE_OPACITY_COMMAND]: [SET_STROKE_OPACITY_COMMAND],
 	[SET_CELL_SCALE_COMMAND]: [SET_CELL_SCALE_COMMAND],
+	[SET_OFFSET_X_COMMAND]: [SET_OFFSET_X_COMMAND],
+	[SET_OFFSET_Y_COMMAND]: [SET_OFFSET_Y_COMMAND],
+	[SET_VELOCITY_X_COMMAND]: [SET_VELOCITY_X_COMMAND],
+	[SET_VELOCITY_Y_COMMAND]: [SET_VELOCITY_Y_COMMAND],
+	[SET_VELOCITY_COMMAND]: [SET_VELOCITY_X_COMMAND, SET_VELOCITY_Y_COMMAND]
 };
 
 const setDefaultsOnCell = (cell : Partial<CellData>) => {
@@ -149,6 +175,10 @@ const setDefaultsOnCell = (cell : Partial<CellData>) => {
 	cell.fillOpacity = undefined;
 	cell.strokeOpacity = undefined;
 	cell.autoOpacity = 0.0;
+	cell.offsetX = 0.0;
+	cell.offsetY = 0.0;
+	cell.velocityX = 0.0;
+	cell.velocityY = 0.0;
 };
 
 const defaultCellData = (row : number, col: number) : CellData => {
@@ -160,7 +190,7 @@ const defaultCellData = (row : number, col: number) : CellData => {
 	return cell as CellData;
 };
 
-export const defaultCellsForSize = (rows, cols) => {
+export const defaultCellsForSize = (rows : number, cols : number) : CellData[] => {
 	const result = [];
 	for (let r = 0; r < rows; r++) {
 		for (let c = 0; c < cols; c++) {
@@ -170,7 +200,7 @@ export const defaultCellsForSize = (rows, cols) => {
 	return result;
 };
 
-export const defaultExpandedFrameForCells = (cells) : ExpandedFrameData => {
+export const defaultExpandedFrameForCells = (cells : CellData[]) : ExpandedFrameData => {
 	let rows = 0;
 	let cols = 0;
 	if (cells.length) {
@@ -187,13 +217,13 @@ export const defaultExpandedFrameForCells = (cells) : ExpandedFrameData => {
 	};
 };
 
-export const getCellFromMap = (map : ExpandedFrameData, row : number, col : number) : CellData => {
+export const getCellFromMap = (map : ExpandedFrameData, row : number, col : number) : CellData | null => {
 	if (row < 0 || row >= map.rows) return null;
 	if (col < 0 || col >= map.cols) return null;
 	return map.cells[row * map.cols + col];
 };
 
-const expandCellReference = (map, cellReferences) => {
+const expandCellReference = (map : ExpandedFrameData, cellReferences : CellReference) : ExpandedCellReference => {
 	//Convert a reference of length 0 to the whole map
 	if (cellReferences.length == 0) return [0,0,map.rows -1, map.cols -1];
 	//convert a single reference to a rectangualr of size one
@@ -201,10 +231,10 @@ const expandCellReference = (map, cellReferences) => {
 	return cellReferences;
 };
 
-const cellsFromReferences = (map, cellReferences) => {
-	cellReferences = expandCellReference(map, cellReferences);
+const cellsFromReferences = (map : ExpandedFrameData, inCellReferences : CellReference) : CellData[] => {
+	const cellReferences = expandCellReference(map, inCellReferences);
 	if (cellReferences.length != 4) throw new Error("Unknown cell reference shape: " + cellReferences);
-	const result = [];
+	const result : CellData[] = [];
 	const [startRow, startCol, endRow, endCol] = cellReferences;
 	if (startRow < 0 || startRow >= map.rows) throw new Error('Invalid cell reference: row ' + startRow + ' is out of bounds');
 	if (endRow < 0 || endRow >= map.rows) throw new Error('Invalid cell reference: row ' + endRow + ' is out of bounds');
@@ -214,33 +244,36 @@ const cellsFromReferences = (map, cellReferences) => {
 	if (endCol < startCol) throw new Error("Cell reference invalid: endCol must be larger: " + cellReferences);
 	for (let r = startRow; r <= endRow; r++) {
 		for (let c = startCol; c <= endCol; c++) {
-			result.push(getCellFromMap(map, r, c));
+			const cell = getCellFromMap(map, r, c);
+			if (!cell) throw new Error('Invalid cell');
+			result.push(cell);
 		}
 	}
 	return result;
 };
 
 //Returns a new reference that is like reference, but legal and within bounds of map
-const trimCellReferenceToMap = (map, reference) => {
-	reference = [...expandCellReference(map, reference)];
+const trimCellReferenceToMap = (map : ExpandedFrameData, inReference : CellReference) : ExpandedCellReference => {
+	const reference = [...expandCellReference(map, inReference)];
 	if (reference[0] < 0) reference[0] = 0;
 	if (reference[1] < 0) reference[1] = 0;
 	if (reference[2] >= map.rows) reference[2] = map.rows - 1;
 	if (reference[3] >= map.cols) reference[3] = map.cols - 1;
-	return reference;
+	if (reference.length != 4) throw new Error('Invalid expanded reference');
+	return reference as [number, number, number, number];
 };
 
-const resetCellsOnMap = (map, cellReference) => {
+const resetCellsOnMap = (map : ExpandedFrameData, cellReference : CellReference) : void => {
 	const cells = cellsFromReferences(map, cellReference);
 	for (const cell of cells) {
 		setDefaultsOnCell(cell);
 	}
 };
 
-const setPropertiesOnMap = (map, propertyName, valueToSet, cellReferences) => {
+const setPropertiesOnMap = (map : ExpandedFrameData, propertyName : keyof ConfigDataItemSetCellDirect, valueToSet : unknown, cellReferences : CellReference) => {
 	const cells = cellsFromReferences(map, cellReferences);
 	for (const cell of cells) {
-		cell[propertyName] = valueToSet;
+		(cell as any)[propertyName] = valueToSet;
 	}
 };
 
@@ -248,7 +281,7 @@ const setPropertiesOnMap = (map, propertyName, valueToSet, cellReferences) => {
 //this; this steps down the whole transparency by a bit.
 const MAX_ADJACENT_POSSIBLE_OPACITY = 0.75;
 
-const setAutoOpacity = (map) => {
+const setAutoOpacity = (map : ExpandedFrameData) => {
 	for (const cell of map.cells) {
 		cell.autoOpacity = 0.0;
 	}
@@ -271,6 +304,48 @@ const setAutoOpacity = (map) => {
 		}
 	}
 };
+
+const nudgeMap = (map : ExpandedFrameData, cellReferences: CellReference, offset : Size) => {
+	const cells = cellsFromReferences(map, cellReferences);
+	for (const cell of cells) {
+		cell.offsetX += offset[0];
+		cell.offsetY += offset[1];
+	}
+}
+
+const moveMap = (map : ExpandedFrameData) => {
+	for (const cell of map.cells) {
+		cell.offsetX = cell.offsetX + cell.velocityX;
+		cell.offsetY = cell.offsetY + cell.velocityY;
+	}
+}
+
+const randomizeMap = (map : ExpandedFrameData, config : RandomizeConfigurationItem) => {
+	const seed = config.seed === true ? undefined : config.seed;
+	const rnd = prng_alea(seed);
+	const min = config.min || 0.0;
+	const max = config.max || 1.0;
+	const ref = config.cells || [];
+	const name = config.name;
+	const cells = cellsFromReferences(map, ref);
+	for (const cell of cells) {
+		const val = (max - min) * rnd.quick() + min;
+		const isBool = typeof cell[name] == 'boolean';
+		let original = config.relative ? cell[name] : 0;
+		if (original === undefined) throw new Error('Uninitalized value');
+		if (original === null) original = 0.0;
+		if (typeof original == 'boolean') original = original ? 1.0 : 0.0;
+		let newVal = val + original;
+		if (isBool) {
+			if (newVal > 1.0) newVal = 1.0;
+			if (newVal < 0.0) newVal = 0.0;
+			newVal = Math.round(newVal);
+			(cell as any)[name] = newVal == 0.0 ? false : true;
+		} else {
+			(cell as any)[name] = newVal;
+		}
+	}
+}
 
 const defaultGrowConfig = () : GrowConfiguration => {
 	return {
@@ -330,21 +405,21 @@ export const ringCells = (map : ExpandedFrameData, centerCell : CellData, ply : 
 
 //returns the number of ply outward from the centerCell this cell is. That is,
 //if you called ringCells(centerCell), what value of ply would have this cell in it?
-export const ringPly = (cell, centerCell) => {
+export const ringPly = (cell : CellData, centerCell : CellData) => {
 	const rowDiff = Math.abs(cell.row - centerCell.row);
 	const colDiff = Math.abs(cell.col - centerCell.col);
 	return Math.max(rowDiff, colDiff);
 };
 
 //Returns the neighbors of the given cell that are in the ring immediately outward of itself from the center cell.
-export const outerNeighbors = (map, cell, centerCell) => {
+export const outerNeighbors = (map : ExpandedFrameData, cell : CellData, centerCell : CellData) => {
 	const ourPly = ringPly(cell, centerCell);
 	return ringCells(map, cell,1).filter(neighbor => ringPly(neighbor, centerCell) > ourPly);
 };
 
-const netPresentValueMap = (map, centerCell, growConfig) => {
+const netPresentValueMap = (map : ExpandedFrameData, centerCell : CellData, growConfig : GrowConfiguration) => {
 	const result = new Map();
-	const maxPly = growConfig.valuePly;
+	const maxPly = growConfig.valuePly || 0;
 	for (let ply = maxPly; ply > 0; ply--) {
 		const ring = ringCells(map, centerCell, ply);
 		for (const cell of ring) {
@@ -359,7 +434,7 @@ const netPresentValueMap = (map, centerCell, growConfig) => {
 			if (ply != maxPly && !isWall) {
 				//By only looking at OUTER neighbors we can ensure we only visit cells have that have already been visited before
 				const outerValue = outerNeighbors(map, cell, centerCell).map(neighbor => result.get(neighbor) || 0.0).reduce((prev, curr) => prev + curr, 0);
-				cellValue += outerValue * (1 - growConfig.valueDropoff);
+				cellValue += outerValue * (1 - (growConfig.valueDropoff || 0));
 			}
 			result.set(cell, cellValue);
 		}
@@ -367,11 +442,11 @@ const netPresentValueMap = (map, centerCell, growConfig) => {
 	return result;
 };
 
-class Urn {
+class Urn<T> {
 
 	private _rnd : RandomGenerator | null;
 	private _sum : number;
-	private _items : Map<string, number>;
+	private _items : Map<T | null, number>;
 
 	constructor(rnd : RandomGenerator | null) {
 		this._rnd = rnd;
@@ -379,15 +454,16 @@ class Urn {
 		this._items = new Map();
 	}
 
-	add(item, count = 1) {
+	add(item : T | null, count = 1) {
 		this._sum += count;
 		this._items.set(item, count);
 	}
 
-	pick() {
+	pick() : T | null {
+		if (!this._rnd) throw new Error('No Rnd provided');
 		const val = this._rnd.quick() * this._sum;
 		let sum = 0.0;
-		const entries = this._items.entries();
+		const entries = [...this._items.entries()];
 		for (let [item, count] of entries) {
 			sum += count;
 			if (sum > val) return item;
@@ -396,7 +472,7 @@ class Urn {
 	}
 }
 
-const shuffleArray = (array, rnd) => {
+const shuffleArray = <T>(array : T[] , rnd : RandomGenerator) : void => {
 	//based on the answer at https://stackoverflow.com/a/12646864
 	for (let i = array.length - 1; i > 0; i--) {
 		const j = Math.floor(rnd.quick() * (i + 1));
@@ -404,7 +480,7 @@ const shuffleArray = (array, rnd) => {
 	}
 };
 
-const growMap = (map, config) => {
+const growMap = (map : ExpandedFrameData, config : GrowConfiguration) : void => {
 	if (typeof config != 'object') config = {};
 	config = {...defaultGrowConfig(), ...config};
 	//TODO: use seed passed in config or something like JSON serialization of map
@@ -418,13 +494,15 @@ const growMap = (map, config) => {
 	//them helps make sure the order changes enough to get more randomness.
 	shuffleArray(activeCells, rnd);
 	for (const cell of activeCells) {
-		let neighbors = [];
+		let neighbors : CellData[] = [];
 		const offsets = [-1, 0, 1];
 		for (const rOffset of offsets) {
 			for (const cOffset of offsets) {
 				if (rOffset == 0 && cOffset == 0) continue;
 				const neighbor = getCellFromMap(map, cell.row + rOffset, cell.col + cOffset);
 				if (!neighbor) continue;
+				if (neighbor.value === null) continue;
+				if (typeof neighbor.value === 'string') continue;
 				if (neighbor.value < 0.0) continue;
 				if (neighbor.value === null || neighbor.value === undefined) continue;
 				if (neighbor.captured) continue;
@@ -439,9 +517,9 @@ const growMap = (map, config) => {
 
 		const npvMap = netPresentValueMap(map, cell, config);
 
-		const valueSelectionStrength = (1.0 - config.randomness) * 1000;
+		const valueSelectionStrength = (1.0 - (config.randomness || 0)) * 1000;
 
-		const neighborsUrn = new Urn(rnd);
+		const neighborsUrn = new Urn<CellData>(rnd);
 
 		//Shuffle so that when everything's the same value we don't just always
 		//pick the upper left.
@@ -457,24 +535,27 @@ const growMap = (map, config) => {
 
 		const neighbor = neighborsUrn.pick();
 
+		if (!neighbor) throw new Error('Null neighbor');
+
 		possibilities.push({
 			neighbor,
 			cell,
-			value: npvMap[neighbor],
+			value: npvMap.get(neighbor),
 		});
 	}
 
 	//ascending values
 	possibilities.sort((a, b) => a.value - b.value);
 	//We should take the smalle rof config.proportion and config.numCellsToGrow. config.numCellsToGrow of 0.0 means no limit
-	let numToSelect = Math.min(activeCells.length * config.proportion, config.numCellsToGrow || Number.MAX_SAFE_INTEGER);
+	let numToSelect = Math.min(activeCells.length * (config.proportion || 0), config.numCellsToGrow || Number.MAX_SAFE_INTEGER);
 	while (possibilities.length && numToSelect) {
 		//TODO: allow configuring this to not take the best but every so often take a random one.
 		const item = possibilities.pop();
+		if (!item) throw new Error("Unexpectedly no item");
 		item.neighbor.active = true;
 		item.neighbor.captured = true;
 		//If we don't kill the original active cell, then we branch.
-		if (rnd.quick() > config.branchLikelihood) item.cell.active = false;
+		if (rnd.quick() > (config.branchLikelihood || 0.0)) item.cell.active = false;
 		numToSelect--;
 	}
 
@@ -487,14 +568,14 @@ const NEGATIVE_VALUE_NAME = 'negative';
 const EMPTY_VALUE_NAME = 'null';
 const ZERO_VALUE_NAME = 'zero';
 
-const DEFAULT_PROPORTIONS = {
-	[MAX_VALUE_NAME]: 100,
-	[MIN_VALUE_NAME]: 15,
-	[POSITIVE_VALUE_NAME]: 100,
-	[NEGATIVE_VALUE_NAME]: 5,
-	[ZERO_VALUE_NAME]: 25,
-	[EMPTY_VALUE_NAME]: 15
-};
+const DEFAULT_PROPORTIONS : Proportions = {
+	max: 100,
+	min: 15,
+	positive: 100,
+	negative: 5,
+	null: 15,
+	zero: 25
+};	
 
 const defaultGenerateConfig = () : GenerateConfiguration => {
 	return {
@@ -507,10 +588,10 @@ const defaultGenerateConfig = () : GenerateConfiguration => {
 //Values are binned in what's generated, into this many bins.
 const VALUE_BIN_COUNT = 5;
 
-const proportionForUrnKey = (config, key) => {
+const proportionForUrnKey = (config : GenerateConfiguration, key : keyof Proportions | number) => {
 	const configProportions = config.proportions || {};
-	const proportions = {...DEFAULT_PROPORTIONS, ...configProportions};
-	let specialKey = key < 0.0 ? NEGATIVE_VALUE_NAME : POSITIVE_VALUE_NAME;
+	const proportions = {...DEFAULT_PROPORTIONS, ...configProportions} as Record<string | number, number>;
+	let specialKey = (typeof key == 'number' && key < 0.0) ? NEGATIVE_VALUE_NAME : POSITIVE_VALUE_NAME;
 	switch (key) {
 	case -1.0:
 		specialKey = MIN_VALUE_NAME;
@@ -530,8 +611,8 @@ const proportionForUrnKey = (config, key) => {
 	return proportions[specialKey];
 };
 
-export const urnFromGenerateConfig = (rnd : RandomGenerator, config : GenerateConfiguration) : Urn => {
-	const urn = new Urn(rnd);
+export const urnFromGenerateConfig = (rnd : RandomGenerator, config : GenerateConfiguration) : Urn<number> => {
+	const urn = new Urn<number>(rnd);
 	const stepSize = 1 / VALUE_BIN_COUNT;
 	for (let i = 0; i <= VALUE_BIN_COUNT * 2; i++) {
 		const rawKey = 1.0 - (i * stepSize);
@@ -539,7 +620,7 @@ export const urnFromGenerateConfig = (rnd : RandomGenerator, config : GenerateCo
 		const proportion = proportionForUrnKey(config, roundedKey);
 		urn.add(roundedKey, proportion);
 	}
-	const emptyProportion = proportionForUrnKey(config, null);
+	const emptyProportion = proportionForUrnKey(config, 'null');
 	urn.add(null, emptyProportion);
 	return urn;
 };
@@ -557,23 +638,26 @@ const generateMap = (map : ExpandedFrameData, config : GenerateConfiguration) =>
 	}
 	const cellsToVisit = [];
 	for (const cell of map.cells) {
-		if (rnd.quick() > config.keyCellProportion) continue;
-		cell.value = urn.pick();
+		if (rnd.quick() > (config.keyCellProportion || 0)) continue;
+		const pick = urn.pick();
+		cell.value = pick;
 		//It's OK if we put in duplicates
 		cellsToVisit.push(...ringCells(map, cell, 1));
 	}
 	while (cellsToVisit.length) {
 		const cell = cellsToVisit.shift();
+		if (!cell) throw new Error("Unexpected undefined item");
 		//It's possible it was added it multiple times
 		if (cell.value != SENTINEL_VALUE) continue;
 		const valueNeighbors = ringCells(map, cell, 1).filter(neighbor => neighbor.value != SENTINEL_VALUE);
 
 		//Set the cell to the mode of its set neighbors
-		const counts : Record<number, number> = {};
+		const counts : Record<string | number, number> = {};
 		for (let neighbor of valueNeighbors) {
-			counts[neighbor.value] = (counts[neighbor.value] || 0) + 1;
+			const val = neighbor.value === null ? 'null' : neighbor.value;
+			counts[val] = (counts[val] || 0) + 1;
 		}
-		let maxKey : number = 0.0;
+		let maxKey : string = '0';
 		let maxCount : number = 0;
 		for (const [key, count] of Object.entries(counts)) {
 			if (count < maxCount) continue;
@@ -581,7 +665,7 @@ const generateMap = (map : ExpandedFrameData, config : GenerateConfiguration) =>
 			maxKey = key;
 		}
 		//null is a valid key, but will be coerced to the string 'null'
-		cell.value = maxKey == 'null' ? null : maxKey;
+		cell.value = maxKey == 'null' ? null : parseFloat(maxKey);
 		//Enqueue nearby cells to process
 		cellsToVisit.push(...ringCells(map, cell, 1));
 	}
@@ -613,7 +697,9 @@ class Frame {
 			if (previousMap.index > this._index) throw new Error("The named map is after us but must be before");
 			previous = previousMap.expandedData;
 		} else if (this._index > 0) {
-			previous = this._collection.frameForIndex(this._index - 1).expandedData;
+			const frame = this._collection.frameForIndex(this._index - 1);
+			if (!frame) throw new Error("Unexpected missing frame");
+			previous = frame.expandedData;
 		} else {
 			previous = defaultExpandedFrameForCells([]);
 		}
@@ -657,10 +743,10 @@ class Frame {
 		let colorsCommand = this._rawData[SET_COLORS_COMMAND];
 		if (colorsCommand !== undefined) {
 			if (typeof colorsCommand != 'object') throw new Error('Colors must be provided an object');
-			const unknownColorKeys = Object.keys(colorsCommand).filter(key => DEFAULT_COLORS[key] === undefined);
+			const unknownColorKeys = Object.keys(colorsCommand).filter(key => (DEFAULT_COLORS as Record<string, ExpandedColor>)[key] === undefined);
 
 			if (unknownColorKeys.length) throw new Error("Unknown color keys: " + unknownColorKeys.join(','));
-			const keysToSetToDefault = Object.entries(colorsCommand).filter(entry => entry[1] === null || entry[1] === undefined).map(entry => entry[0]);
+			const keysToSetToDefault : (keyof Colors<ExpandedColor>)[] = Object.entries(colorsCommand).filter(entry => entry[1] === null || entry[1] === undefined).map(entry => entry[0]) as (keyof Colors<ExpandedColor>)[];
 
 			//undefined (the sentinel to reset to default) won't throw
 			let convertedColors;
@@ -685,10 +771,18 @@ class Frame {
 		//Copy cells so we can modify them
 		result.cells = result.cells.map(cell => ({...cell}));
 
-		let resetCommands = this._rawData[RESET_CELLS_COMMAND];
+		let resetCommands = this._rawData.reset;
 		if (resetCommands) {
 			for (const resetCommand of resetCommands) {
 				resetCellsOnMap(result, resetCommand);
+			}
+		}
+
+		let randomizeCommand = this._rawData.randomize;
+		if (randomizeCommand) {
+			const commands = Array.isArray(randomizeCommand) ? randomizeCommand : [randomizeCommand];
+			for (const command of commands) {
+				randomizeMap(result, command);
 			}
 		}
 
@@ -697,7 +791,7 @@ class Frame {
 			generateMap(result, generateCommand);
 		}
 
-		for (const [commandName, propertyNames] of Object.entries(SET_CELL_COMMANDS)) {
+		for (const [commandName, propertyNames] of TypedObject.entries(SET_CELL_COMMANDS)) {
 			const commands = this._rawData[commandName];
 			if (commands) {
 				for (const command of commands) {
@@ -708,6 +802,23 @@ class Frame {
 					}
 				}
 			}	
+		}
+
+		let nudgeCommands = this._rawData.nudge;
+		if (nudgeCommands) {
+			if (!Array.isArray(nudgeCommands)) throw new Error('nudge must be an array');
+			for (const nudgeCommand of nudgeCommands) {
+				if (!Array.isArray(nudgeCommand)) throw new Error('nudge command must be an array');
+				if (nudgeCommand.length != 2) throw new Error('nudge command expects 2 items');
+				if (!Array.isArray(nudgeCommand[0]) || nudgeCommand[0].length != 2) throw new Error('The first argument to a nudge command must be a size');
+				nudgeMap(result, nudgeCommand[1], nudgeCommand[0]);
+			}
+		}
+
+		let moveCommand = this._rawData.move;
+		if (moveCommand) {
+			if (moveCommand !== true) throw new Error('Move command must be true')
+			moveMap(result);
 		}
 
 		let growCommand = this._rawData[GROW_COMMAND];
@@ -765,14 +876,14 @@ export class FrameCollection {
 		return this._data.length;
 	}
 
-	frameForName(name) {
+	frameForName(name : string) : Frame | null {
 		for (let i = 0; i < this._data.length; i++) {
 			if (this._data[i].name == name) return this.frameForIndex(i);
 		}
 		return null;
 	}
 
-	frameForIndex(index) {
+	frameForIndex(index : number) : Frame | null {
 		if (index < 0 || index >= this._data.length) return null;
 		if (!this._memoizedMaps[index]) {
 			this._memoizedMaps[index] = new Frame(this, index, this._data[index]);

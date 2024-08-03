@@ -15,8 +15,10 @@
       "declarationMap": true,
       "sourceMap": true,
       "inlineSources": true,
-      "rootDir": "."
+      "rootDir": ".",
+      "strict": true,
+      "allowJs": true
     },
-    "include": ["src/**/*.ts", "tools/**/*.ts", "app/**/*.ts"],
+    "include": ["src/**/*.ts", "tools/**/*.ts", "app/**/*.ts", "test/**/*.ts"],
     "exclude": []
   }
