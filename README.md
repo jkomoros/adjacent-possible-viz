@@ -113,7 +113,7 @@ Color defintions in the `setColors` command block can be:
 - `delay` - `<integer>` Defaults to 150. How many ms to wait between frames in the gif.
 
 **randomizeParameters**
-- `name` - The property name to randomize. May only be values that can set cell values directly (excluding opacity). For boolean values, values will be clipped to 0.0 and 1.0 and then rounded to the final value for true or false. For numbers, it will be a linear range between min and max.
+- `name` - The property name to randomize. For boolean values, values will be clipped to 0.0 and 1.0 and then rounded to the final value for true or false. For numbers, it will be a linear range between min and max.
 - `seed` - `true or string` - Optional. Can set a specific seed for this randomization.
 - `min` - `number` - Optional. If omitted, defaults to 0.0. The lowest number for the values.
 - `max` - `number` - Optional. If omitted, defaults to 1.0. The highest number for the values.
