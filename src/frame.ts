@@ -16,6 +16,8 @@ import {
 	ConfigDataItem,
 	ConfigDataItemSetCell,
 	ConfigDataItemSetCellDirect,
+	ConfigDataItemSetCellMulti,
+	ConfigDataItemSetCellRandomizable,
 	ExpandedCellReference,
 	ExpandedColor,
 	ExpandedFrameData,
@@ -163,6 +165,22 @@ const SET_CELL_COMMANDS : Record<keyof ConfigDataItemSetCell, (keyof ConfigDataI
 	[SET_VELOCITY_X_COMMAND]: [SET_VELOCITY_X_COMMAND],
 	[SET_VELOCITY_Y_COMMAND]: [SET_VELOCITY_Y_COMMAND],
 	[SET_VELOCITY_COMMAND]: [SET_VELOCITY_X_COMMAND, SET_VELOCITY_Y_COMMAND]
+};
+
+const SET_CELL_RANDOM_BEHAVIOR : Record<keyof ConfigDataItemSetCellRandomizable, 'consistent' | 'independent' | 'single'> = {
+	opacity: 'consistent',
+	velocity: 'independent',
+	highlighted: 'single',
+	captured: 'single',
+	active: 'single',
+	scale: 'single',
+	offsetX: 'single',
+	offsetY: 'single',
+	velocityX: 'single',
+	velocityY: 'single',
+	strokeOpacity: 'single',
+	fillOpacity: 'single',
+	value: 'single'
 };
 
 const setDefaultsOnCell = (cell : Partial<CellData>) => {
@@ -320,31 +338,58 @@ const moveMap = (map : ExpandedFrameData) => {
 	}
 }
 
+const assertUnreachable = (x : never) : never => {
+	throw new Error('Exhaustiveness check failed: ' + String(x));
+};
+
 const randomizeMap = (map : ExpandedFrameData, config : RandomizeConfigurationItem) => {
 	const seed = config.seed === true ? undefined : config.seed;
 	const rnd = prng_alea(seed);
 	const min = config.min || 0.0;
 	const max = config.max || 1.0;
 	const ref = config.cells || [];
-	const name = config.name;
+	const multiMode = SET_CELL_RANDOM_BEHAVIOR[config.name];
 	const cells = cellsFromReferences(map, ref);
+	//each group in nameGroups will get randomized to the same value. So if
+	//there are multiple names in one group, they'll get the same random value
+	//applied.
+	const nameGroups : (keyof ConfigDataItemSetCellDirect)[][] = [];
+	const commands = SET_CELL_COMMANDS[config.name];
+	switch (multiMode) {
+		case 'consistent':
+		case 'single':
+			nameGroups.push(commands);
+			break;
+		case 'independent':
+			for (const command of commands) {
+				nameGroups.push([command]);
+			}
+			break;
+		default:
+			assertUnreachable(multiMode);
+	}
 	for (const cell of cells) {
-		const val = (max - min) * rnd.quick() + min;
-		const isBool = typeof cell[name] == 'boolean';
-		let original = config.relative ? cell[name] : 0;
-		if (original === undefined) throw new Error('Uninitalized value');
-		if (original === null) original = 0.0;
-		if (typeof original == 'boolean') original = original ? 1.0 : 0.0;
-		let newVal = val + original;
-		if (isBool) {
-			if (newVal > 1.0) newVal = 1.0;
-			if (newVal < 0.0) newVal = 0.0;
-			newVal = Math.round(newVal);
-			(cell as any)[name] = newVal == 0.0 ? false : true;
-		} else {
-			(cell as any)[name] = newVal;
+		for (const nameGroup of nameGroups) {
+			for (const name of nameGroup) {
+				const val = (max - min) * rnd.quick() + min;
+				const isBool = typeof cell[name] == 'boolean';
+				let original = config.relative ? cell[name] : 0;
+				if (original === undefined) throw new Error('Uninitalized value');
+				if (original === null) original = 0.0;
+				if (typeof original == 'boolean') original = original ? 1.0 : 0.0;
+				let newVal = val + original;
+				if (isBool) {
+					if (newVal > 1.0) newVal = 1.0;
+					if (newVal < 0.0) newVal = 0.0;
+					newVal = Math.round(newVal);
+					(cell as any)[name] = newVal == 0.0 ? false : true;
+				} else {
+					(cell as any)[name] = newVal;
+				}
+			}
 		}
 	}
+
 }
 
 const defaultGrowConfig = () : GrowConfiguration => {

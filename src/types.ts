@@ -63,8 +63,7 @@ export type GenerateConfiguration = {
 };
 
 export type RandomizeConfigurationItem = {
-    //TODO: also support setting opacity
-    name: keyof ConfigDataItemSetCellDirect;
+    name: keyof ConfigDataItemSetCellRandomizable;
     seed? : string | true;
     min?: number;
     max?: number;
@@ -93,10 +92,16 @@ export type ConfigDataItemSetCellDirect = {
     velocityY? : CellValue<number>;
 };
 
-//These are the commands that can be used to set properties on cell
-export type ConfigDataItemSetCell = ConfigDataItemSetCellDirect & {
+//These are commands that effectively set multiple properties at once.
+export type ConfigDataItemSetCellMulti = {
     opacity? : CellValue<number>;
     velocity? : CellValue<number>;
+}
+
+export type ConfigDataItemSetCellRandomizable = ConfigDataItemSetCellDirect & ConfigDataItemSetCellMulti;
+
+//These are the commands that can be used to set properties on cell
+export type ConfigDataItemSetCell = ConfigDataItemSetCellDirect & ConfigDataItemSetCellMulti & {
     activeOnly? : CellValue<boolean>;
 };
 
